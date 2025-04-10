@@ -78,13 +78,13 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.1.1
 
-      - name: Sign binary with Cosign
+      - name: Sign binary with Cosign (keyless OIDC)
         env:
-          COSIGN_EXPERIMENTAL: "true"
+          COSIGN_EXPERIMENTAL: "1"
         run: |
           cosign sign-blob --yes \
-            --output-signature ${{ env.OUT_FILE }}${{ env.EXT }}.sig \
-            ${{ env.OUT_FILE }}${{ env.EXT }}
+            --output-signature "${OUT_FILE}.sig" \
+            "${OUT_FILE}${EXT}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
