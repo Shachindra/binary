@@ -44,10 +44,10 @@ jobs:
 
       - name: Set environment variables
         run: |
-          echo "APP_NAME=binary" >> $GITHUB_ENV
-          echo "EXT=" >> $GITHUB_ENV
+          APP_NAME="binary"
+          EXT=""
           if [[ "${{ matrix.os }}" == "windows" ]]; then
-            echo "EXT=.exe" >> $GITHUB_ENV
+            EXT=".exe"
           fi
 
           SUFFIX="${{ matrix.os }}-${{ matrix.arch }}"
@@ -55,7 +55,12 @@ jobs:
             SUFFIX="${{ matrix.os }}-${{ matrix.arch }}v${{ matrix.goarm }}"
           fi
 
-          echo "OUT_FILE=${{ env.APP_NAME }}-${{ github.ref_name }}-${SUFFIX}" >> $GITHUB_ENV
+          OUT_FILE="${APP_NAME}-${{ github.ref_name }}-${SUFFIX}"
+
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+          echo "EXT=$EXT" >> $GITHUB_ENV
+          echo "SUFFIX=$SUFFIX" >> $GITHUB_ENV
+          echo "OUT_FILE=$OUT_FILE" >> $GITHUB_ENV
 
       - name: Build binary
         run: |
