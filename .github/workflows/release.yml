@@ -12,8 +12,8 @@ jobs:
 
     strategy:
       matrix:
-        os: [windows, linux, macos]
-        arch: [amd64] # You can add more architectures if needed (e.g., arm64)
+        os: [windows, linux, darwin]
+        arch: [amd64, arm64, 386] # You can add more architectures if needed (e.g., arm64)
 
     steps:
       # Checkout the code
