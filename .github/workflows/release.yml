@@ -82,9 +82,10 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.1.1
 
-      - name: Sign binary with Cosign (keyless OIDC)
+      - name: Sign binary with Cosign
         env:
           COSIGN_EXPERIMENTAL: "1"
+          COSIGN_TUF_ROOT: /dev/null
         run: |
           cosign sign-blob --yes \
             --output-signature "${OUT_FILE}.sig" \
