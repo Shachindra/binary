@@ -12,56 +12,98 @@ jobs:
 
     strategy:
       matrix:
-        os: [windows, linux, darwin]
-        arch: [amd64, arm64, 386] # You can add more architectures if needed (e.g., arm64)
+        include:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+          - os: linux
+            arch: arm
+            goarm: 7
+          - os: windows
+            arch: amd64
+          - os: windows
+            arch: arm64
+          - os: darwin
+            arch: amd64
+          - os: darwin
+            arch: arm64
 
     steps:
-      # Checkout the code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Set up Go environment
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.23 # Specify the Go version you want to use
+          go-version: 1.22
 
-      # Get the commit hash
       - name: Get commit hash
         id: get-commit
-        run: echo "::set-output name=commit::$(git rev-parse --short HEAD)"
+        run: echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      # Build the binary
+      - name: Set environment variables
+        run: |
+          echo "APP_NAME=binary" >> $GITHUB_ENV
+          echo "EXT=" >> $GITHUB_ENV
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            echo "EXT=.exe" >> $GITHUB_ENV
+          fi
+
+          SUFFIX="${{ matrix.os }}-${{ matrix.arch }}"
+          if [[ "${{ matrix.arch }}" == "arm" ]]; then
+            SUFFIX="${{ matrix.os }}-${{ matrix.arch }}v${{ matrix.goarm }}"
+          fi
+
+          echo "OUT_FILE=${{ env.APP_NAME }}-${{ github.ref_name }}-${SUFFIX}" >> $GITHUB_ENV
+
       - name: Build binary
         run: |
+          export CGO_ENABLED=0
+          if [[ "${{ matrix.arch }}" == "arm" ]]; then
+            export GOARM=${{ matrix.goarm }}
+          fi
           GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build \
             -ldflags "-X main.version=${{ github.ref_name }} -X main.codeHash=${{ steps.get-commit.outputs.commit }} -X main.goVersion=$(go version | awk '{print $3}')" \
-            -o binary-${{ matrix.os }}-${{ matrix.arch }} main.go
+            -o ${{ env.OUT_FILE }}${{ env.EXT }} main.go
 
-      # Upload the binary as an artifact
-      - name: Upload binary artifact
+      - name: Generate SHA256 checksum
+        run: sha256sum ${{ env.OUT_FILE }}${{ env.EXT }} > ${{ env.OUT_FILE }}.sha256
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.1.1
+
+      - name: Sign binary with Cosign
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign-blob --yes \
+            --output-signature ${{ env.OUT_FILE }}${{ env.EXT }}.sig \
+            ${{ env.OUT_FILE }}${{ env.EXT }}
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: binary-${{ matrix.os }}-${{ matrix.arch }}
-          path: binary-${{ matrix.os }}-${{ matrix.arch }}
+          name: ${{ env.OUT_FILE }}
+          path: |
+            ${{ env.OUT_FILE }}${{ env.EXT }}
+            ${{ env.OUT_FILE }}.sha256
+            ${{ env.OUT_FILE }}${{ env.EXT }}.sig
 
   release:
-    name: Create Release
+    name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the code
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
 
-      # Create a release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            binary-windows-amd64
-            binary-linux-amd64
-            binary-macos-amd64
+          files: ./artifacts/**/*
         env:
           TOKEN: ${{ secrets.AUTH_TOKEN }}
